@@ -52,8 +52,8 @@ class PPOAgent:
         self.Q = self.critic_model(nn_arch)
         self.Q_t = self.critic_model(nn_arch)
         self.Q_t.set_weights(self.Q.get_weights())
-        self.A_opt = tf.keras.optimizers.Adam(learning_rate=1e-3)
-        self.Q_opt = tf.keras.optimizers.Adam(learning_rate=1e-3)
+        self.A_opt = tf.keras.optimizers.Adam(learning_rate=1e-5)
+        self.Q_opt = tf.keras.optimizers.Adam(learning_rate=1e-5)
         self.optimizer = tf.keras.optimizers.legacy.RMSprop(learning_rate=learning_rate, decay=decay_rate)
         self.reset_steps = reset_steps
         self.state_index = np.arange(0, self.env.state_dim, 1, dtype=np.int16)
@@ -90,7 +90,6 @@ class PPOAgent:
         prob = self.policy_probs(state)
         dist = tfp.distributions.Categorical(probs=prob,dtype=tf.float32)
         action = dist.sample()
-        print(action)
         return int(action.numpy())
     
     def actor_loss(self, probs, actions, adv, old_probs, closs):
@@ -162,16 +161,6 @@ class PPOAgent:
         return states, actions, returns, adv 
     
     
-    def value_function(self,states):
-        values = []
-        for i in states:
-           values.append(self.Q(np.array(states[i])))
-        return values
-    
-    def get_action(self, state):
-        action_index = self.policy(state)
-        return self.env.tj_list[action_index]
-    
     def train(self, num_episodes):
         iter_num = 0
         episode_versus_reward = np.zeros((num_episodes, 2))
@@ -198,6 +187,7 @@ class PPOAgent:
                 scaled_state = state.copy()
                 scaled_state[1,0] = (scaled_state[1,0] - self.env.min_j_temp)*(80/(self.env.max_j_temp-self.env.min_j_temp))
                 scaled_state[2,0] = (scaled_state[2,0])*80
+                print(scaled_state.reshape(-1))
                 action_index = self.policy(scaled_state)
                 value = self.Q(tf.reshape(scaled_state, (1, -1)))
                 action = self.env.tj_list[action_index]
@@ -208,6 +198,7 @@ class PPOAgent:
                 #actions.append(tf.one_hot(action, 2, dtype=tf.int32).numpy().tolist())
                 actions.append(action_index)
                 prob = self.policy_probs(scaled_state)
+                print(prob[0])
                 probs.append(prob[0])
                 values.append(value[0][0])
                 cumulative_reward += (self.discount_factor ** iter_num) * reward

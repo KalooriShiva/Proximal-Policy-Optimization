@@ -14,7 +14,7 @@ if __name__ == "__main__":
     #agent.P = tf.keras.models.load_model(r"C:\Users\Dr Nabil\Downloads\Policy gradient\Pg_final\P_network.h5")
     env.testing = True
     start_time = time.perf_counter()
-    episode_versus_reward = agent.train(10)
+    episode_versus_reward = agent.train(200)
     cpu_time = time.perf_counter() - start_time
     agent.Q.save("Q_network.h5")
     state_arr = np.zeros_like(env.time_list)
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         scaled_state = state.copy()
         scaled_state[1,0] = (scaled_state[1,0] - env.min_j_temp)*(80/(env.max_j_temp-env.min_j_temp))
         scaled_state[2,0] = (scaled_state[2,0])*80
-        action_arr[i] = agent.policy(scaled_state)
+        action_arr[i] = env.tj_list[agent.policy(scaled_state)]
         #reward_computation
         next_state, reward, done, info = env.step(action_arr[i])
         reward_arr[i] = reward
