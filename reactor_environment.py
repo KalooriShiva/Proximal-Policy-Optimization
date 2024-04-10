@@ -4,9 +4,9 @@ import numpy as np
 
 class Environment:
     
-    def __init__(self, timesteps=10, batch_time=80, min_temp=293, 
-                 max_temp=308, min_conc=0, max_conc=1, num_temp=10, 
-                 num_conc=10, min_j_temp=273, max_j_temp=318, num_j_temp=10, k0=2.53, testing=False):
+    def __init__(self, timesteps=40, batch_time=80, min_temp=293, 
+                 max_temp=308, min_conc=0, max_conc=1, num_temp=40, 
+                 num_conc=40, min_j_temp=273, max_j_temp=318, num_j_temp=40, k0=2.53, testing=False):
         self.curr_state = np.vstack(
             [0, np.random.uniform(min_temp, max_temp), np.random.uniform(min_conc, max_conc)]
         )

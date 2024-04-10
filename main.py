@@ -14,7 +14,7 @@ if __name__ == "__main__":
     #agent.P = tf.keras.models.load_model(r"C:\Users\Dr Nabil\Downloads\Policy gradient\Pg_final\P_network.h5")
     env.testing = True
     start_time = time.perf_counter()
-    episode_versus_reward = agent.train(200)
+    episode_versus_reward = agent.train(5000)
     cpu_time = time.perf_counter() - start_time
     agent.Q.save("Q_network.h5")
     state_arr = np.zeros_like(env.time_list)
@@ -59,6 +59,7 @@ if __name__ == "__main__":
         y="Jacket Temperature",
         legend="full",
         label="Action",
+        drawstyle='steps-pre'
     )
     
     # concentration plot

@@ -164,10 +164,10 @@ class PPOAgent:
     def train(self, num_episodes):
         iter_num = 0
         episode_versus_reward = np.zeros((num_episodes, 2))
-        #episode_versus_reward = np.zeros((num_episodes, 2))
-        plt.ion()  # Turn on interactive mode
-        fig, ax = plt.subplots()
-        line, = ax.plot([], [])  # Empty plot to be updated dynamically
+        # #episode_versus_reward = np.zeros((num_episodes, 2))
+        # plt.ion()  # Turn on interactive mode
+        # fig, ax = plt.subplots()
+        # line, = ax.plot([], [])  # Empty plot to be updated dynamically
 
 
         for episode_index in range(num_episodes):
@@ -187,7 +187,7 @@ class PPOAgent:
                 scaled_state = state.copy()
                 scaled_state[1,0] = (scaled_state[1,0] - self.env.min_j_temp)*(80/(self.env.max_j_temp-self.env.min_j_temp))
                 scaled_state[2,0] = (scaled_state[2,0])*80
-                print(scaled_state.reshape(-1))
+                # print(scaled_state.reshape(-1))
                 action_index = self.policy(scaled_state)
                 value = self.Q(tf.reshape(scaled_state, (1, -1)))
                 action = self.env.tj_list[action_index]
@@ -198,9 +198,8 @@ class PPOAgent:
                 #actions.append(tf.one_hot(action, 2, dtype=tf.int32).numpy().tolist())
                 actions.append(action_index)
                 prob = self.policy_probs(scaled_state)
-                print(prob[0])
-                probs.append(prob[0])
-                values.append(value[0][0])
+                probs.append(np.array(prob[0]))
+                values.append(np.array(value[0][0]))
                 cumulative_reward += (self.discount_factor ** iter_num) * reward
                 state = next_state
                 iter_num += 1
@@ -220,12 +219,12 @@ class PPOAgent:
             if episode_index % 1 == 0:
                 # Update the plot dynamically
                 episode_versus_reward[episode_index] = np.array([episode_index, cumulative_reward])
-                line.set_data(episode_versus_reward[:episode_index+1, 0], episode_versus_reward[:episode_index+1, 1])
-                ax.relim()
-                ax.autoscale_view()
-                plt.draw()
-                plt.pause(0.001)  # Adjust the pause time as needed
+        #         line.set_data(episode_versus_reward[:episode_index+1, 0], episode_versus_reward[:episode_index+1, 1])
+        #         ax.relim()
+        #         ax.autoscale_view()
+        #         plt.draw()
+        #         plt.pause(0.001)  # Adjust the pause time as needed
             
-        plt.ioff()
-        plt.show()
+        # plt.ioff()
+        # plt.show()
         return episode_versus_reward
