@@ -3,19 +3,20 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import pandas as pd
 import tensorflow_probability as tfp
+import tensorflow.keras.losses as kls
 
 
-class ReplayMemory_MPC:
-    def __init__(self,size):
-        df = pd.read_excel(r'C:\Users\Shiva\Desktop\RL_FRE\Time-varying-Setpoint-Tracking-for-Batch-Process-Control-using-Reinforcement-Learning-1\DQN_Implementation\Sample_data.xlsx')
-        # Convert each column of the DataFrame into a NumPy array
-        self.np_arrays = [df[col].to_numpy().reshape(-1, 1) for col in df.columns]
-        # Stack the NumPy arrays horizontally
-        self.memory_mpc = np.hstack(self.np_arrays)
-        self.size_mpc = size
-    def get_batch(self,size):
-        indexes = np.random.choice(range(0,self.size_mpc), size=size, replace=False)
-        return self.memory_mpc[indexes]
+# class ReplayMemory_MPC:
+#     # def __init__(self,size):
+#     #     df = pd.read_excel(r'C:\Users\Shiva\Desktop\RL_FRE\Time-varying-Setpoint-Tracking-for-Batch-Process-Control-using-Reinforcement-Learning-1\DQN_Implementation\Sample_data.xlsx')
+#     #     # Convert each column of the DataFrame into a NumPy array
+#     #     self.np_arrays = [df[col].to_numpy().reshape(-1, 1) for col in df.columns]
+#     #     # Stack the NumPy arrays horizontally
+#     #     self.memory_mpc = np.hstack(self.np_arrays)
+#     #     self.size_mpc = size
+#     # def get_batch(self,size):
+#     #     indexes = np.random.choice(range(0,self.size_mpc), size=size, replace=False)
+#     #     return self.memory_mpc[indexes]
 
 class ReplayMemory:
     def __init__(self, max_size, num_cols):
@@ -39,7 +40,7 @@ class ReplayMemory:
         indexes = np.random.choice(range(0, end_index), size=size, replace=False)
         return self.memory[indexes]
 
-class DQNAgent:
+class PPOAgent:
     
     def __init__(self, environment, learning_rate=1e-3, decay_rate=1e-4, discount_factor=1, epsilon=0.05, batch_size=20, replay_memory_size= 50, nn_arch=[400, 300, 200], reset_steps=9):
         self.env = environment
@@ -59,12 +60,13 @@ class DQNAgent:
         self.action_index = np.arange(self.state_index[-1]+1, self.state_index[-1]+1+self.env.action_dim, 1, dtype=np.int16)
         self.next_state_index = np.arange(self.action_index[-1]+1, self.action_index+1+self.env.state_dim, 1, dtype=np.int16)
         self.reward_index = self.next_state_index[-1] + 1
-        self.memory_mpc = ReplayMemory_MPC(200)
+        self.clip_pram = 0.2
+        # self.memory_mpc = ReplayMemory_MPC(200)
         self.returns = []
         
     def critic_model(self, nn_arch):
         model = tf.keras.models.Sequential()
-        model.add(tf.keras.layers.Dense(nn_arch[0], input_shape=(4,), activation="relu"))
+        model.add(tf.keras.layers.Dense(nn_arch[0], input_shape=(3,), activation="relu"))
         for num_neurons in nn_arch[1:]:
             model.add(tf.keras.layers.Dense(num_neurons, activation="relu"))
         model.add(tf.keras.layers.Dense(1, activation="linear"))
@@ -73,20 +75,54 @@ class DQNAgent:
     
     def actor_model(self, nn_arch):
         model = tf.keras.models.Sequential()
-        model.add(tf.keras.layers.Dense(nn_arch[0], input_shape=(4,), activation="relu"))
+        model.add(tf.keras.layers.Dense(nn_arch[0], input_shape=(3,), activation="relu"))
         for num_neurons in nn_arch[1:]:
             model.add(tf.keras.layers.Dense(num_neurons, activation="relu"))
         model.add(tf.keras.layers.Dense(self.env.num_j_temp, activation="softmax"))
         model.build()
         return model
     
-    @tf.function
+    def policy_probs(self,state):
+        prob = self.A(tf.reshape(state, (1, -1)))
+        return prob
+    
     def policy(self,state):
-        prob = self.A(np.array([state]))
-        prob = prob.numpy()
-        dist = tfp.distributions.Categorical(probs=prob, dtype=tf.float32)
+        prob = self.policy_probs(state)
+        dist = tfp.distributions.Categorical(probs=prob,dtype=tf.float32)
         action = dist.sample()
-        return int(action.numpy()[0])
+        print(action)
+        return int(action.numpy())
+    
+    def actor_loss(self, probs, actions, adv, old_probs, closs):
+        
+        probability = probs      
+        entropy = tf.reduce_mean(tf.math.negative(tf.math.multiply(probability,tf.math.log(probability))))
+        #print(probability)
+        #print(entropy)
+        sur1 = []
+        sur2 = []
+        
+        for pb, t, op, a  in zip(probability, adv, old_probs, actions):
+            t =  tf.constant(t)
+            #op =  tf.constant(op)
+            #print(f"t{t}")
+            #ratio = tf.math.exp(tf.math.log(pb + 1e-10) - tf.math.log(op + 1e-10))
+            ratio = tf.math.divide(pb[a],op[a])
+            #print(f"ratio{ratio}")
+            s1 = tf.math.multiply(ratio,t)
+            #print(f"s1{s1}")
+            s2 =  tf.math.multiply(tf.clip_by_value(ratio, 1.0 - self.clip_pram, 1.0 + self.clip_pram),t)
+            #print(f"s2{s2}")
+            sur1.append(s1)
+            sur2.append(s2)
+
+        sr1 = tf.stack(sur1)
+        sr2 = tf.stack(sur2)
+        
+        #closs = tf.reduce_mean(tf.math.square(td))
+        loss = tf.math.negative(tf.reduce_mean(tf.math.minimum(sr1, sr2)) - closs + 0.001 * entropy)
+        #print(loss)
+        return loss
     
     def learn(self, states, actions,  adv , old_probs, discnt_rewards):
         discnt_rewards = tf.reshape(discnt_rewards, (len(discnt_rewards),))
@@ -94,10 +130,10 @@ class DQNAgent:
 
         old_p = old_probs
 
-        old_p = tf.reshape(old_p, (len(old_p),2))
+        old_p = tf.reshape(old_p, (len(old_p),self.env.num_j_temp))
         with tf.GradientTape() as tape1, tf.GradientTape() as tape2:
-            p = self.actor(states, training=True)
-            v =  self.critic(states,training=True)
+            p = self.A(states)
+            v =  self.Q(states)
             v = tf.reshape(v, (len(v),))
             td = tf.math.subtract(discnt_rewards, v)
             c_loss = 0.5 * kls.mean_squared_error(discnt_rewards, v)
@@ -109,7 +145,7 @@ class DQNAgent:
         self.Q_opt.apply_gradients(zip(grads2, self.Q.trainable_variables))
         return a_loss, c_loss
     
-    def preprocess(states, actions, rewards, done,values, returns, gamma):
+    def preprocess(self, states, actions, rewards, done,values, returns, gamma):
         g = 0
         lmbda = 0.95
         for i in reversed(range(len(rewards))):
@@ -133,7 +169,7 @@ class DQNAgent:
         return values
     
     def get_action(self, state):
-        action_index = self.greedy_policy(np.hstack([state.reshape(-1)]))
+        action_index = self.policy(state)
         return self.env.tj_list[action_index]
     
     def train(self, num_episodes):
@@ -159,27 +195,29 @@ class DQNAgent:
             dones = []
             values = []
             while not self.env.done:
-                action_index = self.policy(state)
-                value = self.critic_model(state)
+                scaled_state = state.copy()
+                scaled_state[1,0] = (scaled_state[1,0] - self.env.min_j_temp)*(80/(self.env.max_j_temp-self.env.min_j_temp))
+                scaled_state[2,0] = (scaled_state[2,0])*80
+                action_index = self.policy(scaled_state)
+                value = self.Q(tf.reshape(scaled_state, (1, -1)))
                 action = self.env.tj_list[action_index]
                 next_state, reward, done, _ = self.env.step(action)
                 dones.append(1-done)
                 rewards.append(reward)
-                states.append(state)
+                states.append(scaled_state)
                 #actions.append(tf.one_hot(action, 2, dtype=tf.int32).numpy().tolist())
-                actions.append(action)
-                prob = self.A(np.array([state]))
+                actions.append(action_index)
+                prob = self.policy_probs(scaled_state)
                 probs.append(prob[0])
                 values.append(value[0][0])
                 cumulative_reward += (self.discount_factor ** iter_num) * reward
                 state = next_state
                 iter_num += 1
-            value = self.critic_model(np.array([state])).numpy()
+            value = self.Q(tf.reshape(scaled_state, (1, -1))).numpy()
             values.append(value[0][0])
             np.reshape(probs, (len(probs),self.env.num_j_temp))
             probs = np.stack(probs, axis=0)
             returns = []
-            adv
             states, actions, returns, adv  = self.preprocess(states, actions, rewards, dones, values,returns, 1)
             al,cl = self.learn(states, actions, adv, probs, returns)
             
