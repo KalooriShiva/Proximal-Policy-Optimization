@@ -3,20 +3,23 @@ import pandas as pd
 import seaborn as sns
 from reactor_environment import Environment
 from agent import PPOAgent
-# import tensorflow as tf
+import time 
 import matplotlib.pyplot as plt
-import time
+import time 
+from datetime import date
+from matplotlib.backends.backend_pdf import PdfPages
+import tensorflow as tf
     
     
 if __name__ == "__main__":
     env = Environment(timesteps=40, num_j_temp=40)
     agent = PPOAgent(learning_rate=1e-6, decay_rate=1e-7, environment=env, nn_arch=[400, 300, 200])
-    #agent.P = tf.keras.models.load_model(r"C:\Users\Dr Nabil\Downloads\Policy gradient\Pg_final\P_network.h5")
+    #agent.A = tf.keras.models.load_model(r"C:\Users\Dr Nabil\Downloads\Policy gradient\Pg_final\P_network.h5")
     env.testing = True
     start_time = time.perf_counter()
-    episode_versus_reward = agent.train(5000)
+    episode_versus_reward = agent.train(70000)
     cpu_time = time.perf_counter() - start_time
-    agent.Q.save("Q_network.h5")
+    agent.A.save("A_network.h5")
     state_arr = np.zeros_like(env.time_list)
     conc_arr = np.zeros_like(env.time_list)
     action_arr = np.zeros_like(env.time_list)
@@ -38,7 +41,7 @@ if __name__ == "__main__":
     df = pd.DataFrame({"Temperature": state_arr, "Time": env.time_list, "Reference": env.Tref, "Jacket Temperature": action_arr, "Concentration [A]": conc_arr, "Reward": reward_arr})
 #    df.to_excel("PG.xlsx")
     sns.set_theme()
-    plt.figure(1)
+    fig1 = plt.figure(1)
     sns.lineplot(
         data=df,
         x="Time",
@@ -52,29 +55,37 @@ if __name__ == "__main__":
         legend="full",
         label="Reference Temperature",
     )
-    plt.figure(2)
+    fig2 = plt.figure(2)
     sns.lineplot(
         data=df,
         x="Time",
         y="Jacket Temperature",
         legend="full",
         label="Action",
-        drawstyle='steps-pre'
+        drawstyle = "steps-pre"
     )
     
     # concentration plot
-    plt.figure(3)
+    fig3 = plt.figure(3)
     sns.lineplot(data=df, x="Time", y="Concentration [A]")
     window_size = 100
     rolling_avg = pd.Series(episode_versus_reward[:,1]).rolling(window=window_size, min_periods=1).mean()
     data = pd.DataFrame({'Episode': range(1, episode_versus_reward.shape[0] + 1),
-                         'Reward':episode_versus_reward[:,1] ,
-                         'Rolling Average': rolling_avg})
-    plt.figure(4)
+                          'Reward':episode_versus_reward[:,1] ,
+                          'Rolling Average': rolling_avg})
+    fig4 = plt.figure(4)
     sns.set_style("darkgrid")
     sns.lineplot(data=data, x='Episode', y = 'Reward', label='Episode Reward', color='blue')
     sns.lineplot(data=data, x='Episode', y = 'Rolling Average', label='Rolling Average', color='red')
     #sns.lineplot(episode_vs_reward_df, x="Episodes", y="Reward")
+    plt.title("Episode_Vs_Reward")
+    
+    pp = PdfPages(f"Plots{date.today()}.pdf")
+    fig_nums = plt.get_fignums()
+    figs = [plt.figure(n) for n in fig_nums]
+    for fig in figs:
+        fig.savefig(pp, format='pdf')
+    pp.close()
     plt.show()
     # control signal plot
     # sns.lineplot(x=env.time_list, y=action_arr, drawstyle='steps-pre', label="Jacket Temperature")
