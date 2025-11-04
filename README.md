@@ -96,7 +96,7 @@ In `reactor_environment.py`, you can adjust:
 ├── Using Replay memory/      # Alternative implementations
 │   ├── agent.py
 │   ├── main.py
-│   └── reactor_environment
+│   └── reactor_environment.py
 └── README.md                 # This file
 ```
 
@@ -141,7 +141,7 @@ The system evaluates performance using:
 ## References
 
 This implementation is related to reinforcement learning approaches for chemical process control:
-- Proximal Policy Optimization: [Schulman et al., 2017](https://arxiv.org/abs/1707.06347)
+- Proximal Policy Optimization Algorithms: [Schulman et al., 2017](https://arxiv.org/abs/1707.06347)
 - Time-varying setpoint tracking for batch processes
 - Model Predictive Control (MPC) comparison baseline
 
